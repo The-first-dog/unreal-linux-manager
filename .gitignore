@@ -1,0 +1,21 @@
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# App runtime data (should live in ~/.config, ~/.local — never in the repo)
+*.log

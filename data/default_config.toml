@@ -1,0 +1,43 @@
+# Default configuration for Unreal Linux Manager.
+# This file is copied to ~/.config/unreal-linux-manager/config.toml on first run.
+# Paths using "~" are expanded to the user's home directory at load time.
+
+[general]
+# Enable verbose logging in the "Journal" panel.
+verbose_logging = false
+# Preferred code editor: "vscode", "rider", or "custom".
+preferred_editor = "vscode"
+# Custom editor command (used when preferred_editor = "custom").
+custom_editor_command = ""
+# Preferred terminal emulator command.
+preferred_terminal = ""
+
+[paths]
+# Default directory where Unreal Engine builds are installed.
+engines_dir = "~/Games/Unreal/Engines"
+# Default directory for Unreal projects.
+projects_dir = "~/Unreal Projects"
+# Directory for downloaded vault / marketplace assets.
+vault_dir = "~/Games/Unreal/Vault"
+
+# Extra directories scanned for engines (in addition to well-known locations).
+extra_engine_scan_paths = [
+    "~/UnrealEngine",
+    "/opt/UnrealEngine",
+]
+
+# Extra directories scanned for .uproject files.
+extra_project_scan_paths = [
+    "~/Documents/Unreal Projects",
+]
+
+[engine]
+# Path of the engine to use by default when launching projects. Empty = ask.
+default_engine_path = ""
+
+[launch]
+# Extra environment variables applied when launching UnrealEditor.
+# Example: { "DXVK_HUD" = "fps" }
+env = {}
+# Extra command-line arguments appended to UnrealEditor launches.
+extra_args = []

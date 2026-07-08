@@ -1,0 +1,3 @@
+# Runtime dependencies for Unreal Linux Manager.
+# Python 3.11+ is required (standard-library tomllib is used for config).
+PySide6>=6.5,<7

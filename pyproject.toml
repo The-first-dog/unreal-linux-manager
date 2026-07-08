@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "unreal-linux-manager"
+version = "1.0.0"
+description = "Manage Unreal Engine installations and projects on Linux desktops (Bazzite / Fedora Atomic and classic distros)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Unreal Linux Manager contributors" }]
+keywords = ["unreal", "linux", "bazzite", "fedora", "gamedev", "pyside6"]
+dependencies = [
+    "PySide6>=6.5,<7",
+]
+
+[project.urls]
+Homepage = "https://github.com/the-first-dog/unreal-linux-manager"
+
+[project.scripts]
+unreal-linux-manager = "unreal_linux_manager.main:main"
+unreal-linux-manager-gui = "unreal_linux_manager.main:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"unreal_linux_manager" = ["assets/*"]
