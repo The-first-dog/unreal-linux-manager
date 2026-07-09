@@ -18,6 +18,7 @@ require Legendary at all.
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
@@ -96,25 +97,49 @@ class EpicAuth:
 
     # -- install ------------------------------------------------------------ #
     @staticmethod
-    def install_command() -> list[str]:
-        """Recommended user-space install command for Legendary."""
-        return ["pipx", "install", "legendary-gl"]
+    def in_virtualenv() -> bool:
+        """True when the current interpreter runs inside a virtual environment."""
+        return sys.prefix != getattr(sys, "base_prefix", sys.prefix)
 
     @staticmethod
-    def install_command_fallback() -> list[str]:
-        """Fallback install using pip --user when pipx is unavailable."""
-        return ["python3", "-m", "pip", "install", "--user", "legendary-gl"]
+    def install_command() -> list[str]:
+        """Recommended isolated install command for Legendary."""
+        return ["pipx", "install", "legendary-gl"]
+
+    @classmethod
+    def install_command_fallback(cls) -> list[str]:
+        """pip-based fallback used when pipx is unavailable.
+
+        ``pip install --user`` is invalid inside a virtual environment
+        ("User site-packages are not visible in this virtualenv"), so we drop
+        ``--user`` in that case and install into the active environment. We use
+        ``sys.executable`` to target the exact interpreter running the app.
+        """
+        if cls.in_virtualenv():
+            return [sys.executable, "-m", "pip", "install", "legendary-gl"]
+        return [sys.executable, "-m", "pip", "install", "--user", "legendary-gl"]
 
     def install_legendary(self):
-        """Install Legendary in user space (pipx preferred, pip --user fallback)."""
+        """Install Legendary (pipx preferred, pip fallback aware of venvs)."""
         if which("pipx"):
             self._runner.log("info", "Installation de Legendary via pipx …")
             return self._runner.run_async(self.install_command())
-        self._runner.log(
-            "warning",
-            "pipx est absent. Installation via 'pip install --user'. "
-            "Pour une meilleure isolation, installez pipx.",
-        )
+
+        if self.in_virtualenv():
+            self._runner.log(
+                "warning",
+                "pipx est absent. Installation de Legendary dans "
+                "l'environnement virtuel courant (l'option --user est "
+                "incompatible avec un venv). Pour une installation isolée et "
+                "disponible partout, installez plutôt pipx "
+                "(ex : 'python3 -m pip install --user pipx').",
+            )
+        else:
+            self._runner.log(
+                "warning",
+                "pipx est absent. Installation via 'pip install --user'. "
+                "Pour une meilleure isolation, installez pipx.",
+            )
         return self._runner.run_async(self.install_command_fallback())
 
     # -- auth flow ---------------------------------------------------------- #
