@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from .core.command_runner import CommandRunner
 from .core.config import Config
+from .core.dependency_manager import DependencyManager
 from .core.engine_manager import EngineManager
 from .core.epic_auth import EpicAuth
 from .core.plugin_manager import PluginManager
@@ -28,6 +29,7 @@ class AppContext:
         self.plugins = PluginManager(self.runner)
         self.epic = EpicAuth(self.runner)
         self.system = SystemCheck(self.runner)
+        self.dependencies = DependencyManager(self.runner)
 
     def apply_config(self) -> None:
         """Re-apply config-derived settings after the user edits them."""

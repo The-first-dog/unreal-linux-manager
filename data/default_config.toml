@@ -3,6 +3,9 @@
 # Paths using "~" are expanded to the user's home directory at load time.
 
 [general]
+# Beginner mode hides advanced/risky features and shows more explanations.
+# Set to false to reveal advanced tools (source build, toolchain, env vars).
+beginner_mode = true
 # Enable verbose logging in the "Journal" panel.
 verbose_logging = false
 # Preferred code editor: "vscode", "rider", or "custom".

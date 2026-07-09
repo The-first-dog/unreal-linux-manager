@@ -57,6 +57,19 @@ class SettingsTab(QWidget):
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
 
+        # Mode (beginner / advanced)
+        mode_group = QGroupBox("Mode d'utilisation")
+        mode_layout = QVBoxLayout(mode_group)
+        self._beginner = QCheckBox("Mode débutant (masquer les fonctions avancées)")
+        mode_layout.addWidget(self._beginner)
+        mode_hint = QLabel(
+            "En mode débutant, les fonctions risquées (compilation depuis les "
+            "sources, toolchain, variables d'environnement, rpm-ostree direct) "
+            "sont masquées et davantage d'explications sont affichées.")
+        mode_hint.setWordWrap(True)
+        mode_layout.addWidget(mode_hint)
+        layout.addWidget(mode_group)
+
         # Directories
         dirs = QGroupBox("Dossiers par défaut")
         dirs_form = QFormLayout(dirs)
@@ -84,18 +97,23 @@ class SettingsTab(QWidget):
         tools_form.addRow("Terminal préféré :", self._terminal)
         layout.addWidget(tools)
 
-        # Launch options
+        # Launch options (default engine is always visible)
         launch = QGroupBox("Lancement d'Unreal")
         launch_form = QFormLayout(launch)
         self._default_engine = QComboBox()
+        launch_form.addRow("Moteur par défaut :", self._default_engine)
+        layout.addWidget(launch)
+
+        # Advanced launch options (hidden in beginner mode)
+        self._advanced_launch = QGroupBox("Options avancées de lancement")
+        adv_form = QFormLayout(self._advanced_launch)
         self._extra_args = QLineEdit()
         self._extra_args.setPlaceholderText("ex : -vulkan -windowed")
         self._env_vars = QLineEdit()
         self._env_vars.setPlaceholderText("ex : DXVK_HUD=fps;__GL_SHADER_DISK_CACHE=1")
-        launch_form.addRow("Moteur par défaut :", self._default_engine)
-        launch_form.addRow("Arguments supplémentaires :", self._extra_args)
-        launch_form.addRow("Variables d'environnement (k=v;k=v) :", self._env_vars)
-        layout.addWidget(launch)
+        adv_form.addRow("Arguments supplémentaires :", self._extra_args)
+        adv_form.addRow("Variables d'environnement (k=v;k=v) :", self._env_vars)
+        layout.addWidget(self._advanced_launch)
 
         # Logging
         logging_group = QGroupBox("Journalisation")
@@ -141,6 +159,7 @@ class SettingsTab(QWidget):
         layout.addStretch(1)
 
         # Wire up
+        self._beginner.toggled.connect(lambda _c: self.apply_mode())
         self._save_btn.clicked.connect(self._save)
         self._reset_btn.clicked.connect(self._reset)
         self._add_engine_path.clicked.connect(
@@ -153,8 +172,15 @@ class SettingsTab(QWidget):
             lambda: self._remove_selected(self._project_paths))
 
     # -- config <-> widgets ------------------------------------------------- #
+    def apply_mode(self) -> None:
+        """Hide advanced settings widgets in beginner mode."""
+        advanced = not self._beginner.isChecked()
+        self._advanced_launch.setVisible(advanced)
+
     def _load_from_config(self) -> None:
         cfg = self._ctx.config
+        self._beginner.setChecked(cfg.beginner_mode)
+        self.apply_mode()
         self._engines_dir.edit.setText(cfg.get("paths", "engines_dir", ""))
         self._projects_dir.edit.setText(cfg.get("paths", "projects_dir", ""))
         self._vault_dir.edit.setText(cfg.get("paths", "vault_dir", ""))
@@ -218,6 +244,7 @@ class SettingsTab(QWidget):
         cfg.set("paths", "projects_dir", self._projects_dir.text())
         cfg.set("paths", "vault_dir", self._vault_dir.text())
 
+        cfg.set("general", "beginner_mode", self._beginner.isChecked())
         cfg.set("general", "preferred_editor", self._editor_combo.currentData())
         cfg.set("general", "custom_editor_command", self._custom_editor.text().strip())
         cfg.set("general", "preferred_terminal", self._terminal.text().strip())

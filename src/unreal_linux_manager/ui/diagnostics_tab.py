@@ -1,33 +1,30 @@
-"""Onglet "Diagnostics" : vérifier que Linux est prêt pour Unreal."""
+"""Onglet "Diagnostics" : un vrai rapport lisible sur l'état du système."""
 
 from __future__ import annotations
 
-from PySide6.QtGui import QColor
+from dataclasses import dataclass
+
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
+    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
 
 from ..app_context import AppContext
-from ..core.system_check import CheckResult
+from ..core import diagnostic_report, paths
 from . import helpers
 from .workers import TaskRunner
 
-# Sober status colours applied only to the small status cell, no gradients or
-# effects. Chosen to remain readable on both light and dark system themes.
-_STATUS_STYLE = {
-    "ok": ("OK", QColor(30, 120, 40)),
-    "warn": ("Attention", QColor(160, 110, 0)),
-    "error": ("Problème", QColor(170, 30, 30)),
-    "info": ("Info", QColor(60, 60, 60)),
-}
+
+@dataclass
+class _Gathered:
+    """All data collected by a single diagnostic run."""
+
+    report_text: str
 
 
 class DiagnosticsTab(QWidget):
@@ -35,95 +32,110 @@ class DiagnosticsTab(QWidget):
         super().__init__(parent)
         self._ctx = ctx
         self._tasks = TaskRunner(self)
-        self._results: list[CheckResult] = []
+        self._report_text = ""
         self._build_ui()
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
 
         intro = QLabel(
-            "Diagnostic de compatibilité Unreal Engine sous Linux. "
-            "Les résultats sont indicatifs et n'exécutent aucune commande "
-            "privilégiée."
-        )
+            "Rapport de compatibilité Unreal Engine sous Linux. Aucune commande "
+            "privilégiée n'est exécutée. Le rapport ne contient aucun token Epic.")
         intro.setWordWrap(True)
         layout.addWidget(intro)
 
         top = QHBoxLayout()
         self._run_btn = QPushButton("Diagnostic")
         self._copy_btn = QPushButton("Copier le rapport")
+        self._export_btn = QPushButton("Exporter diagnostic")
         top.addWidget(self._run_btn)
         top.addWidget(self._copy_btn)
+        top.addWidget(self._export_btn)
         top.addStretch(1)
         layout.addLayout(top)
 
-        self._table = QTableWidget(0, 3)
-        self._table.setHorizontalHeaderLabels(["Test", "État", "Détail / Conseil"])
-        self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-        self._table.setWordWrap(True)
-        layout.addWidget(self._table)
+        self._view = QTextBrowser()
+        mono = QFont("monospace")
+        mono.setStyleHint(QFont.Monospace)
+        self._view.setFont(mono)
+        self._view.setPlainText(
+            "Cliquez sur « Diagnostic » pour générer le rapport.")
+        layout.addWidget(self._view)
+
+        self._copy_btn.setEnabled(False)
+        self._export_btn.setEnabled(False)
 
         self._run_btn.clicked.connect(self.run)
-        self._copy_btn.clicked.connect(self._copy_report)
+        self._copy_btn.clicked.connect(self._on_copy)
+        self._export_btn.clicked.connect(self._on_export)
 
+    # -- run ---------------------------------------------------------------- #
     def run(self) -> None:
         self._run_btn.setEnabled(False)
-        engine_paths = self._ctx.config.engine_scan_paths()
-        disk_dirs = [
-            str(self._ctx.config.engines_dir),
-            str(self._ctx.config.projects_dir),
-        ]
+        self._view.setPlainText("Diagnostic en cours…")
+        ctx = self._ctx
 
-        def do_checks() -> list[CheckResult]:
-            return self._ctx.system.run_all(
-                engine_scan_paths=engine_paths, disk_dirs=disk_dirs
+        def gather() -> _Gathered:
+            os_info = ctx.dependencies.os_info(refresh=True)
+            engine_paths = ctx.config.engine_scan_paths()
+            disk_dirs = [
+                str(ctx.config.engines_dir),
+                str(ctx.config.projects_dir),
+                str(ctx.config.vault_dir),
+            ]
+            sys_results = ctx.system.run_all(
+                engine_scan_paths=engine_paths, disk_dirs=disk_dirs)
+            dep_results = ctx.dependencies.check_dependencies()
+            engines = ctx.engines.scan(engine_paths)
+            projects = ctx.projects.scan(ctx.config.project_scan_paths())
+            epic_state = ctx.epic.refresh_status()
+            text = diagnostic_report.build_report(
+                os_info=os_info,
+                sys_results=sys_results,
+                dep_results=dep_results,
+                engines=engines,
+                projects=projects,
+                epic_state=epic_state,
+                config=ctx.config,
             )
+            return _Gathered(report_text=text)
 
         self._tasks.start(
-            do_checks,
+            gather,
             on_finished=self._on_done,
             on_failed=self._on_failed,
         )
 
-    def _on_done(self, results: list[CheckResult]) -> None:
-        self._results = results
+    def _on_done(self, data: _Gathered) -> None:
         self._run_btn.setEnabled(True)
-        self._table.setRowCount(len(results))
-        for row, res in enumerate(results):
-            label, color = _STATUS_STYLE.get(res.status, _STATUS_STYLE["info"])
-
-            name_item = QTableWidgetItem(res.name)
-            status_item = QTableWidgetItem(label)
-            status_item.setForeground(color)
-
-            detail = res.detail
-            if res.hint:
-                detail = f"{detail}\n→ {res.hint}" if detail else f"→ {res.hint}"
-            detail_item = QTableWidgetItem(detail)
-            detail_item.setToolTip(detail)
-
-            self._table.setItem(row, 0, name_item)
-            self._table.setItem(row, 1, status_item)
-            self._table.setItem(row, 2, detail_item)
-        self._table.resizeRowsToContents()
+        self._report_text = data.report_text
+        self._view.setPlainText(data.report_text)
+        self._copy_btn.setEnabled(True)
+        self._export_btn.setEnabled(True)
 
     def _on_failed(self, message: str) -> None:
         self._run_btn.setEnabled(True)
+        self._view.setPlainText(f"Le diagnostic a échoué :\n{message}")
         helpers.error_box(self, "Diagnostic échoué", message)
 
-    def _copy_report(self) -> None:
-        if not self._results:
-            helpers.info_box(self, "Rapport vide",
-                             "Lancez d'abord un diagnostic.")
+    # -- export / copy ------------------------------------------------------ #
+    def _on_copy(self) -> None:
+        if not self._report_text:
             return
-        lines = ["Rapport de diagnostic Unreal Linux Manager", "=" * 44]
-        for res in self._results:
-            label = _STATUS_STYLE.get(res.status, _STATUS_STYLE["info"])[0]
-            lines.append(f"[{label}] {res.name}: {res.detail}")
-            if res.hint:
-                lines.append(f"    → {res.hint}")
-        helpers.copy_to_clipboard("\n".join(lines))
-        helpers.info_box(self, "Rapport copié",
-                         "Le rapport de diagnostic a été copié.")
+        helpers.copy_to_clipboard(self._report_text)
+        helpers.info_box(self, "Rapport copié", "Le rapport a été copié.")
+
+    def _on_export(self) -> None:
+        if not self._report_text:
+            return
+        paths.ensure_runtime_dirs()
+        target = paths.state_dir() / "diagnostic_report.txt"
+        try:
+            target.write_text(self._report_text, encoding="utf-8")
+        except OSError as exc:
+            helpers.error_box(self, "Export impossible",
+                              f"Impossible d'écrire le rapport :\n{exc}")
+            return
+        self._ctx.runner.log("info", f"Rapport de diagnostic exporté : {target}")
+        helpers.info_box(self, "Rapport exporté",
+                         f"Rapport enregistré dans :\n{target}")

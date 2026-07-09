@@ -15,8 +15,10 @@ from PySide6.QtWidgets import (
 from .. import __app_name__, __version__
 from ..app_context import AppContext
 from .account_tab import AccountTab
+from .dependencies_tab import DependenciesTab
 from .diagnostics_tab import DiagnosticsTab
 from .engines_tab import EnginesTab
+from .instructions_tab import InstructionsTab
 from .journal import JournalPanel
 from .plugins_tab import PluginsTab
 from .projects_tab import ProjectsTab
@@ -41,14 +43,18 @@ class MainWindow(QMainWindow):
         self._engines_tab = EnginesTab(ctx)
         self._projects_tab = ProjectsTab(ctx)
         self._plugins_tab = PluginsTab(ctx)
+        self._dependencies_tab = DependenciesTab(ctx)
         self._diagnostics_tab = DiagnosticsTab(ctx)
+        self._instructions_tab = InstructionsTab(ctx)
         self._settings_tab = SettingsTab(ctx, on_saved=self._on_settings_saved)
 
         self._tabs.addTab(self._account_tab, "Compte Epic")
         self._tabs.addTab(self._engines_tab, "Moteurs")
         self._tabs.addTab(self._projects_tab, "Projets")
         self._tabs.addTab(self._plugins_tab, "Plugins / Assets")
+        self._tabs.addTab(self._dependencies_tab, "Dépendances")
         self._tabs.addTab(self._diagnostics_tab, "Diagnostics")
+        self._tabs.addTab(self._instructions_tab, "Instructions")
         self._tabs.addTab(self._settings_tab, "Paramètres")
 
         # Vertical splitter: tabs on top, Journal at the bottom.
@@ -81,6 +87,9 @@ class MainWindow(QMainWindow):
     def _on_settings_saved(self) -> None:
         """Refresh dependent tabs when settings change."""
         self._journal.set_verbose(self._ctx.config.verbose_logging)
+        # Apply beginner/advanced visibility across tabs.
+        self._engines_tab.apply_mode()
+        self._settings_tab.apply_mode()
         self._engines_tab.scan()
         self._projects_tab.scan()
         self._plugins_tab.refresh_sources()
@@ -89,7 +98,7 @@ class MainWindow(QMainWindow):
         """Wait for background scan/diagnostic threads before quitting."""
         for tab in (
             self._account_tab, self._engines_tab, self._projects_tab,
-            self._plugins_tab, self._diagnostics_tab,
+            self._plugins_tab, self._dependencies_tab, self._diagnostics_tab,
         ):
             runner = getattr(tab, "_tasks", None)
             if runner is not None:

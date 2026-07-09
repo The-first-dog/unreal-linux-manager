@@ -255,6 +255,71 @@ class EngineManager:
             return None
         return None
 
+    # -- prepare / repair --------------------------------------------------- #
+    def prepare_engine(self, engine_path: str | Path) -> list[tuple[str, str, str]]:
+        """Check and repair a detected engine; return a (label, status, detail) report.
+
+        status is one of "ok" / "warn" / "error". This performs only safe,
+        non-destructive actions: it verifies the editor binary, fixes the
+        executable bit, and reports on the toolchain / project-file scripts. It
+        never launches the editor or compiles anything on its own.
+        """
+        engine = paths.expand(engine_path)
+        report: list[tuple[str, str, str]] = []
+
+        editor = get_unreal_editor_path(engine)
+        if not editor.is_file():
+            report.append((
+                "Binaire UnrealEditor", "error",
+                f"Introuvable : {editor}. Ce dossier n'est pas un moteur Unreal "
+                "Linux valide (import incomplet ?).",
+            ))
+            return report
+        report.append(("Binaire UnrealEditor", "ok", str(editor)))
+
+        # Fix the executable bit (and helper scripts) if needed.
+        import os as _os
+
+        was_exec = _os.access(editor, _os.X_OK)
+        made = make_unreal_editor_executable(engine)
+        if made and not was_exec:
+            report.append(("Bit exécutable", "ok",
+                           "Ajouté avec chmod +x sur UnrealEditor."))
+        elif made:
+            report.append(("Bit exécutable", "ok", "Déjà exécutable."))
+        else:
+            report.append(("Bit exécutable", "error",
+                           "Impossible de rendre UnrealEditor exécutable."))
+
+        # Toolchain script (for C++).
+        toolchain = engine / "Engine/Build/BatchFiles/Linux/SetupToolchain.sh"
+        if toolchain.is_file():
+            report.append(("SetupToolchain.sh", "ok",
+                           "Présent. Utilisez « Setup toolchain C++ » si vous "
+                           "comptez compiler du C++."))
+        else:
+            report.append(("SetupToolchain.sh", "warn",
+                           "Absent (normal pour un build binaire ; requis "
+                           "seulement pour compiler du C++)."))
+
+        # Project-file generation scripts.
+        genfiles = engine / "Engine/Build/BatchFiles/Linux/GenerateProjectFiles.sh"
+        if genfiles.is_file():
+            report.append(("GenerateProjectFiles.sh", "ok", str(genfiles)))
+        else:
+            report.append(("GenerateProjectFiles.sh", "warn",
+                           "Absent (généralement présent uniquement sur un "
+                           "build source)."))
+
+        # Version marker sanity.
+        version = unreal_detector.detect_engine_version(engine)
+        report.append(("Version détectée", "ok" if version != "inconnue" else "warn",
+                       version))
+
+        self._runner.log("info", f"Préparation du moteur {engine.name} : "
+                                 f"{len(report)} vérification(s).")
+        return report
+
     # -- toolchain ---------------------------------------------------------- #
     def setup_toolchain(self, engine_path: str | Path):
         """Run the engine's Linux SetupToolchain.sh script if present."""

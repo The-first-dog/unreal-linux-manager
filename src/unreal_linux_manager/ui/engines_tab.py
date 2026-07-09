@@ -20,7 +20,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QUrl
+
 from ..app_context import AppContext
+from ..core import constants
 from ..core.engine_manager import EngineInfo
 from . import helpers
 from .workers import TaskRunner
@@ -39,10 +43,30 @@ class EnginesTab(QWidget):
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
 
+        # Find / download Unreal Engine
+        find_group = QGroupBox("Trouver Unreal Engine pour Linux")
+        find_layout = QVBoxLayout(find_group)
+        find_note = QLabel(
+            "Unreal Engine se télécharge depuis Epic (compte requis). Cette "
+            "application ne le télécharge pas à votre place et ne redistribue "
+            "aucun fichier du moteur : récupérez le ZIP officiel puis importez-le.")
+        find_note.setWordWrap(True)
+        find_layout.addWidget(find_note)
+        find_row = QHBoxLayout()
+        self._open_official_btn = QPushButton("Ouvrir la page officielle Unreal Engine")
+        self._open_doc_btn = QPushButton("Ouvrir la documentation Linux officielle")
+        self._have_zip_btn = QPushButton("J'ai téléchargé le ZIP Unreal Linux")
+        self._steps_btn = QPushButton("Afficher les étapes d'installation")
+        for b in (self._open_official_btn, self._open_doc_btn,
+                  self._have_zip_btn, self._steps_btn):
+            find_row.addWidget(b)
+        find_layout.addLayout(find_row)
+        layout.addWidget(find_group)
+
         # Action buttons
         actions = QHBoxLayout()
         self._scan_btn = QPushButton("Scanner")
-        self._import_btn = QPushButton("Importer ZIP officiel Unreal Linux")
+        self._import_btn = QPushButton("Importer un ZIP Unreal déjà téléchargé")
         self._add_btn = QPushButton("Ajouter moteur existant")
         actions.addWidget(self._scan_btn)
         actions.addWidget(self._import_btn)
@@ -63,12 +87,13 @@ class EnginesTab(QWidget):
         # Per-engine action buttons
         row = QHBoxLayout()
         self._launch_btn = QPushButton("Lancer")
+        self._prepare_btn = QPushButton("Préparer ce moteur")
         self._open_btn = QPushButton("Ouvrir dossier")
         self._size_btn = QPushButton("Calculer la taille")
         self._toolchain_btn = QPushButton("Setup toolchain C++")
         self._remove_btn = QPushButton("Retirer de la liste")
-        for b in (self._launch_btn, self._open_btn, self._size_btn,
-                  self._toolchain_btn, self._remove_btn):
+        for b in (self._launch_btn, self._prepare_btn, self._open_btn,
+                  self._size_btn, self._toolchain_btn, self._remove_btn):
             row.addWidget(b)
         row.addStretch(1)
         layout.addLayout(row)
@@ -78,8 +103,9 @@ class EnginesTab(QWidget):
         self._progress.setVisible(False)
         layout.addWidget(self._progress)
 
-        # Advanced: build from source
+        # Advanced: build from source (hidden in beginner mode)
         adv = QGroupBox("Avancé : installer depuis les sources GitHub")
+        self._advanced_group = adv
         adv_layout = QVBoxLayout(adv)
         adv_note = QLabel(
             "La compilation depuis les sources nécessite un compte GitHub lié à "
@@ -96,17 +122,30 @@ class EnginesTab(QWidget):
         layout.addWidget(adv)
 
         # Wire up
+        self._open_official_btn.clicked.connect(self._on_open_official)
+        self._open_doc_btn.clicked.connect(self._on_open_doc)
+        self._have_zip_btn.clicked.connect(self._on_import_zip)
+        self._steps_btn.clicked.connect(self._on_show_steps)
         self._scan_btn.clicked.connect(self.scan)
         self._import_btn.clicked.connect(self._on_import_zip)
         self._add_btn.clicked.connect(self._on_add_existing)
         self._launch_btn.clicked.connect(self._on_launch)
+        self._prepare_btn.clicked.connect(self._on_prepare)
         self._open_btn.clicked.connect(self._on_open_folder)
         self._size_btn.clicked.connect(self._on_compute_size)
         self._toolchain_btn.clicked.connect(self._on_toolchain)
         self._remove_btn.clicked.connect(self._on_remove)
         self._copy_source_btn.clicked.connect(self._on_copy_source)
 
+        self.apply_mode()
         self._update_buttons()
+
+    def apply_mode(self) -> None:
+        """Show/hide advanced tools according to beginner/advanced mode."""
+        advanced = not self._ctx.config.beginner_mode
+        self._advanced_group.setVisible(advanced)
+        # The C++ toolchain is an advanced action too.
+        self._toolchain_btn.setVisible(advanced)
 
     # -- helpers ------------------------------------------------------------ #
     def _selected_engine(self) -> EngineInfo | None:
@@ -120,8 +159,8 @@ class EnginesTab(QWidget):
 
     def _update_buttons(self) -> None:
         has = self._selected_engine() is not None
-        for b in (self._launch_btn, self._open_btn, self._size_btn,
-                  self._toolchain_btn, self._remove_btn):
+        for b in (self._launch_btn, self._prepare_btn, self._open_btn,
+                  self._size_btn, self._toolchain_btn, self._remove_btn):
             b.setEnabled(has)
 
     def _populate(self) -> None:
@@ -246,10 +285,72 @@ class EnginesTab(QWidget):
         )
         self._ctx.runner.log("info", f"Lancement du moteur : {engine.name}")
 
+    def _on_prepare(self) -> None:
+        engine = self._selected_engine()
+        if not engine:
+            return
+        self._prepare_btn.setEnabled(False)
+        self._tasks.start(
+            self._ctx.engines.prepare_engine, engine.path,
+            on_finished=lambda report: self._on_prepare_done(engine, report),
+            on_failed=self._on_task_failed,
+        )
+
+    def _on_prepare_done(self, engine: EngineInfo, report) -> None:
+        self._prepare_btn.setEnabled(True)
+        icons = {"ok": "[OK]", "warn": "[!]", "error": "[X]"}
+        lines = [f"Rapport de préparation : {engine.name}", ""]
+        has_error = False
+        for label, status, detail in report:
+            if status == "error":
+                has_error = True
+            lines.append(f"{icons.get(status, '[i]')} {label}\n    {detail}")
+        text = "\n".join(lines)
+        if has_error:
+            helpers.error_box(self, "Préparation : problème détecté", text)
+        else:
+            lines.append("")
+            lines.append("Ce moteur est prêt à être lancé depuis la liste.")
+            helpers.info_box(self, "Préparation terminée", "\n".join(lines))
+        self._populate()
+
     def _on_open_folder(self) -> None:
         engine = self._selected_engine()
         if engine:
             self._ctx.runner.run_async(["xdg-open", engine.path])
+
+    # -- find / download helpers ------------------------------------------- #
+    def _open_url(self, url: str) -> None:
+        if not QDesktopServices.openUrl(QUrl(url)):
+            self._ctx.runner.run_async(["xdg-open", url])
+        self._ctx.runner.log("info", f"Ouverture de : {url}")
+
+    def _on_open_official(self) -> None:
+        self._open_url(constants.UNREAL_DOWNLOAD_URL)
+
+    def _on_open_doc(self) -> None:
+        self._open_url(constants.UNREAL_LINUX_DOC_URL)
+
+    def _on_show_steps(self) -> None:
+        steps = (
+            "Comment installer Unreal Engine sur Linux\n"
+            "=========================================\n\n"
+            "Étape 1 : Va sur la page officielle Unreal Engine.\n"
+            "Étape 2 : Connecte-toi à ton compte Epic si demandé.\n"
+            "Étape 3 : Télécharge la version Linux en fichier .zip.\n"
+            "Étape 4 : Dans cette application, clique sur\n"
+            "          « Importer un ZIP Unreal déjà téléchargé ».\n"
+            "Étape 5 : Choisis le fichier .zip.\n"
+            "Étape 6 : L'application extrait le moteur dans le dossier choisi\n"
+            "          et vérifie que le fichier suivant existe :\n"
+            "          Engine/Binaries/Linux/UnrealEditor\n"
+            "Étape 7 : L'application rend le fichier exécutable si nécessaire\n"
+            "          (bouton « Préparer ce moteur »).\n"
+            "Étape 8 : Tu peux lancer Unreal Engine depuis la liste des moteurs.\n\n"
+            "Note : cette application ne télécharge pas Unreal depuis des liens\n"
+            "non officiels et ne contourne jamais la connexion Epic."
+        )
+        helpers.info_box(self, "Étapes d'installation", steps)
 
     def _on_compute_size(self) -> None:
         engine = self._selected_engine()

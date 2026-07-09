@@ -25,6 +25,7 @@ from . import paths
 # file can be read. Keeps the application usable in every situation.
 _FALLBACK_DEFAULTS: dict[str, Any] = {
     "general": {
+        "beginner_mode": True,
         "verbose_logging": False,
         "preferred_editor": "vscode",
         "custom_editor_command": "",
@@ -188,6 +189,14 @@ class Config:
         return copy.deepcopy(self._data)
 
     # -- typed convenience accessors --------------------------------------- #
+    @property
+    def beginner_mode(self) -> bool:
+        return bool(self.get("general", "beginner_mode", True))
+
+    @beginner_mode.setter
+    def beginner_mode(self, value: bool) -> None:
+        self.set("general", "beginner_mode", bool(value))
+
     @property
     def verbose_logging(self) -> bool:
         return bool(self.get("general", "verbose_logging", False))

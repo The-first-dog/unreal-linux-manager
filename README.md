@@ -19,25 +19,40 @@ compliqué — elle utilise le thème natif du système.
 
 ## Fonctionnalités (V1)
 
-- **Compte Epic** — état de connexion, installation et connexion via Legendary
-  (OAuth navigateur), mode manuel sans compte. Aucun mot de passe demandé.
-- **Moteurs** — scan des installations Unreal, import d'un ZIP officiel Linux
-  (avec `chmod +x` automatique du binaire `UnrealEditor`), ajout d'un moteur
-  existant, lancement, calcul de taille, setup toolchain C++, et instructions
-  de compilation depuis les sources (mode avancé, jamais automatique).
-- **Projets** — scan récursif des fichiers `.uproject`, lancement avec le
-  moteur choisi, ouverture du dossier, ouverture dans VS Code, génération des
-  fichiers projet.
-- **Plugins / Assets** — scan des plugins de projet et du dossier Marketplace
-  du moteur, ajout d'un plugin local, reconstruction du projet, intégration
-  d'Epic Asset Manager (Flatpak).
-- **Diagnostics** — OS, système atomic/immuable, `rpm-ostree`, Wayland/X11,
-  GPU, Vulkan, RAM, glibc, espace disque, binaire exécutable, VS Code,
-  Distrobox, Flatpak. Résultats colorés simplement (OK / Attention / Problème).
-- **Paramètres** — dossiers par défaut, éditeur/terminal préféré, moteur par
-  défaut, options de lancement (env + arguments), logs détaillés, chemins de
-  scan, réinitialisation.
+- **Compte Epic** — connexion guidée en 4 étapes, entièrement via Legendary et
+  le navigateur externe (jamais de WebView) : vérifier / installer Legendary
+  (pipx ou venv dédié, sans sudo), connexion automatique, **connexion manuelle
+  avec `authorizationCode`** (colle le code ou le JSON), tester la connexion,
+  déconnexion, mode manuel sans compte. Aucun mot de passe ni token stocké.
+- **Moteurs** — section **« Trouver Unreal Engine pour Linux »** (page
+  officielle, doc Linux, étapes d'installation), import d'un ZIP officiel Linux
+  (avec `chmod +x` automatique), ajout d'un moteur existant, lancement,
+  **« Préparer ce moteur »** (vérifie/répare le binaire et les scripts), calcul
+  de taille, et compilation depuis les sources (mode avancé uniquement).
+- **Projets** — scan récursif des `.uproject`, lancement avec le moteur choisi,
+  ouverture du dossier, ouverture dans VS Code, génération des fichiers projet.
+- **Plugins / Assets** — scan des plugins de projet et du dossier Marketplace,
+  ajout d'un plugin local, reconstruction, intégration d'Epic Asset Manager.
+- **Dépendances** *(nouveau)* — vérifie les prérequis Linux (OS, GPU/Vulkan,
+  outils de base, compilation, RAM, espace disque) avec un statut clair
+  (OK / Manquant / Optionnel / Problème / Non applicable), construit un **plan
+  d'installation** adapté à la distribution et l'exécute avec confirmation et
+  **dry-run**. Sur Bazzite/Atomic : Flatpak → Homebrew/Distrobox → rpm-ostree
+  en dernier recours (avec avertissement + rappel de redémarrage).
+- **Diagnostics** — **rapport sectionné lisible** (Système, GPU/Vulkan, Unreal,
+  Projets, Compte Epic, Dépendances, Recommandations) + **export** vers
+  `~/.local/state/unreal-linux-manager/diagnostic_report.txt` (sans token).
+- **Instructions** *(nouveau)* — 8 guides simples pour utilisateur débutant.
+- **Paramètres** — **mode débutant / avancé**, dossiers par défaut,
+  éditeur/terminal, moteur par défaut, options de lancement (avancé), logs,
+  chemins de scan, réinitialisation.
 - **Journal** — toutes les commandes système exécutées sont tracées.
+
+### Mode débutant / avancé
+
+Le **mode débutant** (activé par défaut) masque les fonctions risquées
+(compilation depuis les sources, toolchain C++, variables d'environnement) et
+affiche plus d'explications. Le **mode avancé** (Paramètres) révèle tout.
 
 ---
 
@@ -146,16 +161,21 @@ unreal-linux-manager/
         │   ├── engines_tab.py
         │   ├── projects_tab.py
         │   ├── plugins_tab.py
+        │   ├── dependencies_tab.py
         │   ├── diagnostics_tab.py
+        │   ├── instructions_tab.py
         │   ├── settings_tab.py
         │   ├── journal.py
         │   ├── workers.py
         │   └── helpers.py
         └── core/              # logique métier sans dépendance Qt
             ├── config.py
+            ├── constants.py
             ├── paths.py
             ├── command_runner.py
             ├── system_check.py
+            ├── dependency_manager.py
+            ├── diagnostic_report.py
             ├── epic_auth.py
             ├── engine_manager.py
             ├── project_manager.py
