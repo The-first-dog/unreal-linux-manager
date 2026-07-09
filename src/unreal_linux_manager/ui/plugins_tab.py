@@ -59,6 +59,7 @@ class PluginsTab(QWidget):
 
         # Plugin table
         self._table = QTableWidget(0, 4)
+        self._table.setMinimumHeight(180)
         self._table.setHorizontalHeaderLabels(
             ["Plugin", "Portée", "Version", "Chemin"]
         )

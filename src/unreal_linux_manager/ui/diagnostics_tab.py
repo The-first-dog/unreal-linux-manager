@@ -55,6 +55,7 @@ class DiagnosticsTab(QWidget):
         layout.addLayout(top)
 
         self._view = QTextBrowser()
+        self._view.setMinimumHeight(260)
         mono = QFont("monospace")
         mono.setStyleHint(QFont.Monospace)
         self._view.setFont(mono)

@@ -53,6 +53,7 @@ class ProjectsTab(QWidget):
         layout.addLayout(top)
 
         self._table = QTableWidget(0, 4)
+        self._table.setMinimumHeight(180)
         self._table.setHorizontalHeaderLabels(
             ["Projet", "Chemin", "Moteur associé", "Modifié le"]
         )

@@ -70,6 +70,7 @@ class DependenciesTab(QWidget):
         layout.addLayout(top)
 
         self._table = QTableWidget(0, 4)
+        self._table.setMinimumHeight(200)
         self._table.setHorizontalHeaderLabels(
             ["Dépendance", "État", "Catégorie", "Détail / Rôle"])
         self._table.setSelectionBehavior(QAbstractItemView.SelectRows)

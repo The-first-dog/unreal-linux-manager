@@ -76,6 +76,7 @@ class EnginesTab(QWidget):
 
         # Engine table
         self._table = QTableWidget(0, 4)
+        self._table.setMinimumHeight(180)
         self._table.setHorizontalHeaderLabels(["Nom / Version", "Chemin", "Taille", "Valide"])
         self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SingleSelection)

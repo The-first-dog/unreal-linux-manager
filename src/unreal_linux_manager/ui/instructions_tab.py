@@ -127,6 +127,7 @@ class InstructionsTab(QWidget):
 
         self._view = QTextBrowser()
         self._view.setOpenExternalLinks(True)
+        self._view.setMinimumHeight(320)
         layout.addWidget(self._view)
 
         self._list.currentRowChanged.connect(self._show_guide)

@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QMainWindow,
+    QScrollArea,
     QSplitter,
     QStatusBar,
     QTabWidget,
@@ -31,6 +32,7 @@ class MainWindow(QMainWindow):
         self._ctx = ctx
         self.setWindowTitle(f"{__app_name__} {__version__}")
         self.resize(980, 720)
+        self.setMinimumSize(640, 480)
 
         # Journal panel first so the runner can log during tab construction.
         self._journal = JournalPanel()
@@ -48,14 +50,16 @@ class MainWindow(QMainWindow):
         self._instructions_tab = InstructionsTab(ctx)
         self._settings_tab = SettingsTab(ctx, on_saved=self._on_settings_saved)
 
-        self._tabs.addTab(self._account_tab, "Compte Epic")
-        self._tabs.addTab(self._engines_tab, "Moteurs")
-        self._tabs.addTab(self._projects_tab, "Projets")
-        self._tabs.addTab(self._plugins_tab, "Plugins / Assets")
-        self._tabs.addTab(self._dependencies_tab, "Dépendances")
-        self._tabs.addTab(self._diagnostics_tab, "Diagnostics")
-        self._tabs.addTab(self._instructions_tab, "Instructions")
-        self._tabs.addTab(self._settings_tab, "Paramètres")
+        # Each tab is wrapped in a scroll area so its content never overlaps or
+        # gets crushed when the window is small: the user can simply scroll.
+        self._tabs.addTab(self._scrollable(self._account_tab), "Compte Epic")
+        self._tabs.addTab(self._scrollable(self._engines_tab), "Moteurs")
+        self._tabs.addTab(self._scrollable(self._projects_tab), "Projets")
+        self._tabs.addTab(self._scrollable(self._plugins_tab), "Plugins / Assets")
+        self._tabs.addTab(self._scrollable(self._dependencies_tab), "Dépendances")
+        self._tabs.addTab(self._scrollable(self._diagnostics_tab), "Diagnostics")
+        self._tabs.addTab(self._scrollable(self._instructions_tab), "Instructions")
+        self._tabs.addTab(self._scrollable(self._settings_tab), "Paramètres")
 
         # Vertical splitter: tabs on top, Journal at the bottom.
         splitter = QSplitter(Qt.Vertical)
@@ -83,6 +87,23 @@ class MainWindow(QMainWindow):
                 "Distrobox / dossiers utilisateur ; évitez les modifications "
                 "système.",
             )
+
+    @staticmethod
+    def _scrollable(widget: QWidget) -> QScrollArea:
+        """Wrap a tab widget in a vertically-scrollable area.
+
+        ``setWidgetResizable(True)`` makes the inner widget follow the viewport
+        width (so labels wrap correctly) while allowing vertical scrolling when
+        the content is taller than the window — this prevents any widget from
+        overlapping or being crushed on small windows.
+        """
+        area = QScrollArea()
+        area.setWidgetResizable(True)
+        area.setFrameShape(QScrollArea.NoFrame)
+        area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        area.setWidget(widget)
+        return area
 
     def _on_settings_saved(self) -> None:
         """Refresh dependent tabs when settings change."""
